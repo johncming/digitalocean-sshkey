@@ -1,72 +1,50 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"flag"
 	"fmt"
-	"net/http"
+
+	"github.com/digitalocean/godo"
+	"golang.org/x/oauth2"
 )
 
-var do_token string
+var pat string
 
 func init() {
-	flag.StringVar(&do_token, "token", "", "digital ocean token")
+	flag.StringVar(&pat, "token", "", "digital ocean token")
 	flag.Parse()
 }
 
+type TokenSource struct {
+	AccessToken string
+}
+
+func (t *TokenSource) Token() (*oauth2.Token, error) {
+	token := &oauth2.Token{
+		AccessToken: t.AccessToken,
+	}
+	return token, nil
+}
+
 func main() {
-	url := "https://api.digitalocean.com/v2/account/keys"
 
-	req, err := http.NewRequest("GET", url, http.NoBody)
+	tokenSource := &TokenSource{
+		AccessToken: pat,
+	}
+
+	oauthClient := oauth2.NewClient(oauth2.NoContext, tokenSource)
+	client := godo.NewClient(oauthClient)
+
+	ctx := context.TODO()
+
+	keys, _, err := client.Keys.List(ctx, nil)
 	if err != nil {
 		panic(err)
 	}
 
-	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", do_token))
-
-	cli := &http.Client{}
-
-	res, err := cli.Do(req)
-
-	if err != nil {
-		panic(err)
-	}
-
-	if res.StatusCode != 200 {
-		fmt.Println("fail to get token")
-	}
-
-	dec := json.NewDecoder(res.Body)
-
-	type Msg struct {
-		Key   string
-		Value string
-	}
-
-	// open bracket
-	_, err = dec.Token()
-	if err != nil {
-		panic(err)
-	}
-
-	for dec.More() {
-		var m Msg
-		err := dec.Decode(&m)
-		if err != nil {
-			panic(err)
-		}
-
-		if m.Key == "id" {
-			fmt.Printf("DIGITAL OCEAN TOKEN: %s", m.Value)
-		}
-
-	}
-
-	// close bracket
-	_, err = dec.Token()
-	if err != nil {
-		panic(err)
+	for _, k := range keys {
+		fmt.Printf("%+v\n", k.ID) // output for debug
 	}
 
 }
